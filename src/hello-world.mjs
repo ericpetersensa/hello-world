@@ -35,47 +35,55 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
-/* ---------- Register toolbar hook EARLY (outside 'ready') ---------- */
-/* v13: controls is a Record<string, SceneControl>; SceneControl.tools is also a Record<string, SceneControlTool> */
-Hooks.on("getSceneControlButtons", (controls) => {
-  // Log available groups
-  const names = Object.keys(controls ?? {});
-  console.debug("[hello-world] available control groups:", names);
+/* ---------- Register toolbar hook EARLY (at 'init') ---------- */
+/* Adds a NEW top-level group: 'hello-world' with one tool 'open'. */
+Hooks.on("init", () => {
+  Hooks.on("getSceneControlButtons", (controls) => {
+    const isArray = Array.isArray(controls);
+    const hasGroup = isArray
+      ? controls.some(c => c?.name === "hello-world")
+      : !!controls?.["hello-world"];
 
-  // Prefer these groups; otherwise fall back to the first available
-  const preferred = ["token", "select", "basic", "notes", "measure"];
-  const groupName = preferred.find((n) => controls?.[n]) ?? names[0];
-  const group = groupName ? controls[groupName] : null;
+    if (hasGroup) {
+      console.debug("[hello-world] top-level control group already present; skipping.");
+      return;
+    }
 
-  if (!group) {
-    console.warn("[hello-world] No control groups found; skipping toolbar button.");
-    return;
-  }
+    // Build the tool object
+    const toolName = "open";
+    const tool = {
+      name: toolName,
+      title: game.i18n.localize("HELLO.ControlTitle"),
+      icon: "fa-solid fa-face-smile",
+      button: true,
+      visible: true,
+      // order is used by record-shaped tool sets; harmless on arrays
+      order: 1000,
+      onClick: () => game.modules.get("hello-world")?.api.open()
+    };
 
-  // v13: ensure tools is a record, not array
-  if (!group.tools || Array.isArray(group.tools)) group.tools = group.tools ?? {};
+    // Build the group object
+    const group = {
+      name: "hello-world",
+      title: game.i18n.localize("HELLO.ControlTitle"),
+      icon: "fa-solid fa-face-smile",
+      // No custom canvas layer; this is just a launcher
+      layer: null,
+      activeTool: toolName
+    };
 
-  // Skip duplicate
-  if (group.tools["hello-world"]) {
-    console.debug("[hello-world] tool already present; skipping duplicate.");
-    return;
-  }
-
-  // Compute an order that comes after any existing tools
-  const existing = Object.values(group.tools ?? {});
-  const maxOrder = existing.length ? Math.max(...existing.map(t => t?.order ?? 0)) : 0;
-  const order = maxOrder + 1;
-
-  group.tools["hello-world"] = {
-    name: "hello-world",
-    title: game.i18n.localize("HELLO.ControlTitle"),
-    icon: "fa-solid fa-face-smile",
-    button: true,
-    order,
-    onClick: () => game.modules.get("hello-world")?.api.open()
-  };
-
-  console.debug(`[hello-world] injected tool into '${groupName}' controls at order ${order}`);
+    if (isArray) {
+      // Array-shaped controls & tools
+      group.tools = [tool];
+      controls.push(group);
+      console.debug("[hello-world] added top-level control group (array shape).");
+    } else {
+      // Record-shaped controls & tools (v13+)
+      group.tools = { [toolName]: tool };
+      controls["hello-world"] = group;
+      console.debug("[hello-world] added top-level control group (record shape).");
+    }
+  });
 });
 
 /* ---------------------- Finalize on 'ready' ------------------------ */
@@ -84,11 +92,11 @@ Hooks.once("ready", () => {
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // Force the controls to rebuild once, in case init order rendered controls before our hook ran
+  // v13-compliant refresh: re-render controls (no deprecated initialize)
   try {
-    if (ui?.controls?.initialize) ui.controls.initialize();
-    else ui.controls?.render(true);
+    const opts = { controls: ui.controls?.controls, tool: ui.controls?.activeTool?.name };
+    ui.controls?.render(opts);
   } catch (err) {
-    console.warn("[hello-world] controls refresh failed", err);
+    console.warn("[hello-world] controls refresh encountered a problem (safe to ignore if button shows):", err);
   }
 });
