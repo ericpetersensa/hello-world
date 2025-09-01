@@ -39,13 +39,14 @@ Hooks.once("ready", () => {
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
   Hooks.on("getSceneControlButtons", (controls) => {
-    controls.push({
-      name: "hello-world",
-      title: game.i18n.localize("HELLO.ControlTitle"),
-      icon: "fa-solid fa-face-smile",
-      visible: true,
-      button: true,
-      onClick: () => new HelloWorldApp().render(true)
-    });
+  const token = controls.find(c => c.name === "token");
+  if (!token) return;
+
+  token.tools.push({
+    name: "hello-world",
+    title: game.i18n.localize("HELLO.ControlTitle"),
+    icon: "fa-solid fa-face-smile",
+    button: true,
+    onClick: () => game.modules.get("hello-world")?.api.open()
   });
 });
