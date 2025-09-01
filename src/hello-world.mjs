@@ -23,7 +23,6 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     content: { template: "modules/hello-world/templates/hello.hbs" }
   };
 
-  /** Provide template context */
   async _prepareContext() {
     return {
       message: game.i18n.localize("HELLO.WorldMessage"),
@@ -31,32 +30,58 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
-  /** Header & inline button action */
   static #onSayHello() {
     ui.notifications.info(game.i18n.localize("HELLO.Toast"));
   }
 }
 
+/* ---------- Register toolbar hook EARLY (outside 'ready') ---------- */
+Hooks.on("getSceneControlButtons", (controls) => {
+  // Normalize to an array and log what we have
+  const asArray = Array.isArray(controls) ? controls : Object.values(controls ?? {});
+  const names = asArray.map(c => c?.name).filter(Boolean);
+  console.debug("[hello-world] available control groups:", names);
+
+  // Prefer these groups; otherwise fall back to the first available
+  const preferred = ["token", "select", "basic", "notes", "measure"];
+  let group =
+    preferred.map(name => asArray.find(c => c?.name === name)).find(Boolean) ??
+    asArray[0];
+
+  if (!group) {
+    console.warn("[hello-world] No control groups found; skipping toolbar button.");
+    return;
+  }
+
+  // Ensure tools array and skip duplicates
+  group.tools ??= [];
+  if (group.tools.some(t => t?.name === "hello-world")) {
+    console.debug("[hello-world] tool already present; skipping duplicate.");
+    return;
+  }
+
+  group.tools.push({
+    name: "hello-world",
+    title: game.i18n.localize("HELLO.ControlTitle"),
+    icon: "fa-solid fa-face-smile",
+    button: true,
+    onClick: () => game.modules.get("hello-world")?.api.open()
+  });
+
+  console.debug(`[hello-world] injected tool into '${group.name}' controls`);
+});
+
+/* ---------------------- Finalize on 'ready' ------------------------ */
 Hooks.once("ready", () => {
-  // Expose a tiny API so a macro can open the app
+  // Expose a tiny API so you can open the app from a macro
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // Add a tool button under the existing Token controls group
-  Hooks.on("getSceneControlButtons", (controls) => {
-    // v13 may provide an array or a record; normalize to an array
-    const list = Array.isArray(controls) ? controls : Object.values(controls ?? {});
-    const token = list.find((c) => c?.name === "token");
-    if (!token) return;
-
-    (token.tools ??= []).push({
-      name: "hello-world",
-      title: game.i18n.localize("HELLO.ControlTitle"),
-      icon: "fa-solid fa-face-smile",
-      button: true,
-      onClick: () => game.modules.get("hello-world")?.api.open()
-    });
-  });
-
-  console.debug("[hello-world] ready: toolbar button registered");
+  // Force the controls to rebuild once (in case init order rendered before we registered)
+  try {
+    if (ui?.controls?.initialize) ui.controls.initialize();
+    else ui.controls?.render(true);
+  } catch (err) {
+    console.warn("[hello-world] controls refresh failed", err);
+  }
 });
