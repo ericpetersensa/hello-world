@@ -1,0 +1,9 @@
+{
+  "HELLO.WorldTitle": "Hello World",
+  "HELLO.WorldMessage": "This window is rendered with ApplicationV2 and Handlebars parts.",
+  "HELLO.Button": "Say Hello",
+  "HELLO.Toast": "👋 Hello from AppV2!",
+  "HELLO.Version": "Version",
+  "HELLO.HeaderButton": "Hello",
+  "HELLO.ControlTitle": "Open Hello World"
+}
