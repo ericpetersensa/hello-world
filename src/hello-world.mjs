@@ -36,48 +36,55 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
 }
 
 /* ---------- Register toolbar hook EARLY (outside 'ready') ---------- */
+/* v13: controls is a Record<string, SceneControl>; SceneControl.tools is also a Record<string, SceneControlTool> */
 Hooks.on("getSceneControlButtons", (controls) => {
-  // Normalize to an array and log what we have
-  const asArray = Array.isArray(controls) ? controls : Object.values(controls ?? {});
-  const names = asArray.map(c => c?.name).filter(Boolean);
+  // Log available groups
+  const names = Object.keys(controls ?? {});
   console.debug("[hello-world] available control groups:", names);
 
   // Prefer these groups; otherwise fall back to the first available
   const preferred = ["token", "select", "basic", "notes", "measure"];
-  let group =
-    preferred.map(name => asArray.find(c => c?.name === name)).find(Boolean) ??
-    asArray[0];
+  const groupName = preferred.find((n) => controls?.[n]) ?? names[0];
+  const group = groupName ? controls[groupName] : null;
 
   if (!group) {
     console.warn("[hello-world] No control groups found; skipping toolbar button.");
     return;
   }
 
-  // Ensure tools array and skip duplicates
-  group.tools ??= [];
-  if (group.tools.some(t => t?.name === "hello-world")) {
+  // v13: ensure tools is a record, not array
+  if (!group.tools || Array.isArray(group.tools)) group.tools = group.tools ?? {};
+
+  // Skip duplicate
+  if (group.tools["hello-world"]) {
     console.debug("[hello-world] tool already present; skipping duplicate.");
     return;
   }
 
-  group.tools.push({
+  // Compute an order that comes after any existing tools
+  const existing = Object.values(group.tools ?? {});
+  const maxOrder = existing.length ? Math.max(...existing.map(t => t?.order ?? 0)) : 0;
+  const order = maxOrder + 1;
+
+  group.tools["hello-world"] = {
     name: "hello-world",
     title: game.i18n.localize("HELLO.ControlTitle"),
     icon: "fa-solid fa-face-smile",
     button: true,
+    order,
     onClick: () => game.modules.get("hello-world")?.api.open()
-  });
+  };
 
-  console.debug(`[hello-world] injected tool into '${group.name}' controls`);
+  console.debug(`[hello-world] injected tool into '${groupName}' controls at order ${order}`);
 });
 
 /* ---------------------- Finalize on 'ready' ------------------------ */
 Hooks.once("ready", () => {
-  // Expose a tiny API so you can open the app from a macro
+  // Expose a tiny API so a macro can open the app
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // Force the controls to rebuild once (in case init order rendered before we registered)
+  // Force the controls to rebuild once, in case init order rendered controls before our hook ran
   try {
     if (ui?.controls?.initialize) ui.controls.initialize();
     else ui.controls?.render(true);
