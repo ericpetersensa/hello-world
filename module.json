@@ -1,0 +1,144 @@
+mkdir -p src templates styles lang
+
+# module.json
+cat > module.json << 'JSON'
+{
+  "id": "hello-world",
+  "title": "Hello World (v13, AppV2)",
+  "description": "A minimal v13 module showcasing ApplicationV2 + HandlebarsApplicationMixin.",
+  "version": "1.0.0",
+  "authors": [{ "name": "Eric Petersen" }],
+  "url": "https://github.com/ericpetersensa/hello-world",
+  "readme": "README.md",
+  "license": "MIT",
+  "compatibility": { "minimum": "13", "verified": "13.341" },
+  "esmodules": ["src/hello-world.mjs"],
+  "styles": ["styles/hello-world.css"],
+  "languages": [
+    { "lang": "en", "name": "English", "path": "lang/en.json" }
+  ]
+}
+JSON
+
+# src/hello-world.mjs
+cat > src/hello-world.mjs << 'JS'
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/** Simple Hello World window using AppV2 + Handlebars parts (no jQuery) */
+class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
+
+  static DEFAULT_OPTIONS = {
+    id: "hello-world-app",
+    classes: ["hello-world", "app"],
+    tag: "section",
+    position: { width: 360, height: "auto" },
+    window: {
+      title: "HELLO.WorldTitle",          // localized title
+      icon: "fa-solid fa-face-smile",
+      controls: [
+        { icon: "fa-solid fa-circle-info", label: "HELLO.HeaderButton", action: "say-hello" }
+      ]
+    },
+    actions: {
+      "say-hello": HelloWorldApp.#onSayHello
+    }
+  };
+
+  static PARTS = {
+    content: { template: "modules/hello-world/templates/hello.hbs" }
+  };
+
+  /** Provide template context */
+  async _prepareContext(_options) {
+    return {
+      message: game.i18n.localize("HELLO.WorldMessage"),
+      version: game.modules.get("hello-world")?.version ?? "dev"
+    };
+  }
+
+  /** Header & inline button action */
+  static #onSayHello(_event, _target) {
+    ui.notifications.info(game.i18n.localize("HELLO.Toast"));
+  }
+}
+
+/** Ready: expose a tiny API and add a scene control for easy access */
+Hooks.once("ready", () => {
+  // Optional: expose an API so a macro can call game.modules.get('hello-world')?.api.open()
+  const mod = game.modules.get("hello-world");
+  if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
+
+  // Add a button to the scene controls (Token bar by default)
+  Hooks.on("getSceneControlButtons", (controls) => {
+    // Add as an independent small control
+    controls["hello-world"] = {
+      name: "hello-world",
+      title: game.i18n.localize("HELLO.ControlTitle"),
+      icon: "fa-solid fa-face-smile",
+      visible: true,
+      button: true,
+      onClick: () => new HelloWorldApp().render(true)
+    };
+  });
+});
+JS
+
+# templates/hello.hbs
+cat > templates/hello.hbs << 'HBS'
+<div class="hello-world__wrap">
+  <header class="hello-world__header">
+    <h2>{{localize "HELLO.WorldTitle"}}</h2>
+  </header>
+
+  <div class="hello-world__content">
+    <p>{{message}}</p>
+    say-hello
+      {{localize "HELLO.Button"}}
+    </button>
+  </div>
+
+  <footer class="hello-world__footer">
+    <small>{{localize "HELLO.Version"}} {{version}}</small>
+  </footer>
+</div>
+HBS
+
+# styles/hello-world.css
+cat > styles/hello-world.css << 'CSS'
+/* Minimal styles; compatible with v13's CSS layers/themes */
+.hello-world__wrap { padding: 0.75rem; display: grid; gap: 0.5rem; }
+.hello-world__header h2 { margin: 0; font-size: 1.1rem; }
+.hello-world__btn { padding: 0.4rem 0.6rem; }
+.hello-world__footer { color: var(--color-text-dark-5, #666); }
+CSS
+# lang/en.json
+cat > lang/en.json << 'JSON'
+{
+  "HELLO.WorldTitle": "Hello World",
+  "HELLO.WorldMessage": "This window is rendered with ApplicationV2 and Handlebars parts.",
+  "HELLO.Button": "Say Hello",
+  "HELLO.Toast": "👋 Hello from AppV2!",
+  "HELLO.Version": "Version",
+  "HELLO.HeaderButton": "Hello",
+  "HELLO.ControlTitle": "Open Hello World"
+}
+JSON
+
+# README
+cat > README.md << 'MD'
+# Hello World (Foundry VTT v13, AppV2)
+
+A minimal v13 module using **ApplicationV2 + HandlebarsApplicationMixin**, ES modules, and no jQuery.
+
+## Install (local dev)
+1. Clone this repo anywhere on disk.
+2. In Foundry's **Data** folder, create `Data/modules/hello-world` and copy this repo's contents there *or* symlink the folder.
+3. Launch Foundry, open a World, then enable **Hello World (v13, AppV2)** under **Game Settings → Manage Modules**.
+4. Click the **😀 Hello World** scene control (or run a Macro with:  
+   `game.modules.get('hello-world')?.api.open()`).
+
+## Notes
+- Built for **v13** using the latest AppV2 patterns (DEFAULT_OPTIONS, PARTS, actions).  
+- Uses DOM APIs instead of jQuery per v13 requirements.
+
+MD
