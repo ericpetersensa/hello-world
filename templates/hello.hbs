@@ -5,9 +5,16 @@
 
   <div class="hello-world__content">
     <p>{{message}}</p>
-    say-hello
-      {{localize "HELLO.Button"}}
-    </button>
+
+    save-note
+      <label for="note">{{localize "HELLO.NoteLabel"}}</label>
+      <input type="text" name="note" id="note" value="{{note}}" placeholder="Type something..." />
+      <button type="submit">{{localize "HELLO.SaveButton"}}</button>
+    </form>
+
+    {{#if saved}}
+      <p class="hello-world__saved">{{localize "HELLO.Saved"}}: {{saved}}</p>
+    {{/if}}
   </div>
 
   <footer class="hello-world__footer">
