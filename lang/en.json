@@ -5,5 +5,8 @@
   "HELLO.Toast": "👋 Hello from AppV2!",
   "HELLO.Version": "Version",
   "HELLO.HeaderButton": "Hello",
-  "HELLO.ControlTitle": "Open Hello World"
+  "HELLO.ControlTitle": "Open Hello World",
+  "HELLO.NoteLabel": "Your Note",
+  "HELLO.SaveButton": "Save",
+  "HELLO.Saved": "Saved Note"
 }
