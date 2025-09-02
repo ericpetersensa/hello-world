@@ -2,7 +2,7 @@
   "id": "hello-world",
   "title": "Hello World (v13, AppV2)",
   "description": "A minimal v13 module showcasing ApplicationV2 + HandlebarsApplicationMixin.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "authors": [{ "name": "Eric Petersen" }],
   "url": "https://github.com/ericpetersensa/hello-world",
   "readme": "README.md",
