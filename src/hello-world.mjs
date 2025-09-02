@@ -1,6 +1,6 @@
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Simple Hello World window using AppV2 + Handlebars (no jQuery) */
+/** Hello World window using ApplicationV2 + Handlebars (no jQuery) */
 class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "hello-world-app",
@@ -35,68 +35,56 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
-/* ---------- Register toolbar hook EARLY (at 'init') ---------- */
-/* Adds a NEW top-level group: 'hello-world' with one tool 'open'. */
+/* ------------------------------------------------------------------ */
+/*  Register a NEW top-level Scene Controls group at init (v13 style)  */
+/* ------------------------------------------------------------------ */
 Hooks.on("init", () => {
   Hooks.on("getSceneControlButtons", (controls) => {
-    const isArray = Array.isArray(controls);
-    const hasGroup = isArray
-      ? controls.some(c => c?.name === "hello-world")
-      : !!controls?.["hello-world"];
+    // v13+ expectation: controls is a Record<string, SceneControl>
+    if (!controls || typeof controls !== "object" || Array.isArray(controls)) return;
 
-    if (hasGroup) {
-      console.debug("[hello-world] top-level control group already present; skipping.");
-      return;
-    }
+    // Skip if already injected by a reload or hot module swap
+    if (controls["hello-world"]) return;
 
-    // Build the tool object
     const toolName = "open";
+
+    // Define our tool as part of a record (v13)
     const tool = {
       name: toolName,
       title: game.i18n.localize("HELLO.ControlTitle"),
       icon: "fa-solid fa-face-smile",
       button: true,
       visible: true,
-      // order is used by record-shaped tool sets; harmless on arrays
       order: 1000,
       onClick: () => game.modules.get("hello-world")?.api.open()
     };
 
-    // Build the group object
-    const group = {
+    // Define our top-level control group (no canvas layer; it’s a launcher)
+    controls["hello-world"] = {
       name: "hello-world",
       title: game.i18n.localize("HELLO.ControlTitle"),
       icon: "fa-solid fa-face-smile",
-      // No custom canvas layer; this is just a launcher
       layer: null,
-      activeTool: toolName
+      activeTool: toolName,        // group state field, not the deprecated ui.controls getter
+      tools: { [toolName]: tool }  // v13: tools as a record
     };
 
-    if (isArray) {
-      // Array-shaped controls & tools
-      group.tools = [tool];
-      controls.push(group);
-      console.debug("[hello-world] added top-level control group (array shape).");
-    } else {
-      // Record-shaped controls & tools (v13+)
-      group.tools = { [toolName]: tool };
-      controls["hello-world"] = group;
-      console.debug("[hello-world] added top-level control group (record shape).");
-    }
+    console.debug("[hello-world] Added top-level control group (v13 record).");
   });
 });
 
-/* ---------------------- Finalize on 'ready' ------------------------ */
+/* ------------------------- Ready: public API & UI refresh ------------------------- */
 Hooks.once("ready", () => {
-  // Expose a tiny API so a macro can open the app
+  // Expose a tiny API so a macro can open the window
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // v13-compliant refresh: re-render controls (no deprecated initialize)
+  // v13-compliant refresh: re-render controls and preserve current tool if present
   try {
-    const opts = { controls: ui.controls?.controls, tool: ui.controls?.activeTool?.name };
-    ui.controls?.render(opts);
+    const currentControls = ui.controls?.controls;
+    const currentToolName = ui.controls?.tool?.name ?? undefined; // v13 state
+    ui.controls?.render({ controls: currentControls, tool: currentToolName });
   } catch (err) {
-    console.warn("[hello-world] controls refresh encountered a problem (safe to ignore if button shows):", err);
+    console.warn("[hello-world] controls refresh encountered a problem (safe to ignore if the button shows):", err);
   }
 });
