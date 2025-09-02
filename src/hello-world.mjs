@@ -1,6 +1,11 @@
+// src/hello-world.mjs
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Hello World window using ApplicationV2 + Handlebars (no jQuery) */
+/**
+ * Hello World window using ApplicationV2 + Handlebars (no jQuery).
+ * - Top-level toolbar group "hello-world" with an "open" tool.
+ * - PoC: a note saved to world settings ("hello-world.note").
+ */
 class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "hello-world-app",
@@ -24,7 +29,7 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     content: { template: "modules/hello-world/templates/hello.hbs" }
   };
 
-  /** Provide template context */
+  /** Provide template context each render */
   async _prepareContext() {
     const note = game.settings.get("hello-world", "note");
     return {
@@ -40,16 +45,15 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ui.notifications.info(game.i18n.localize("HELLO.Toast"));
   }
 
-  /** Save note action (bound to a button with data-action="save-note") */
+  /** Save note action (wired to a save-note in hello.hbs) */
   static async #onSaveNote(event, target) {
     event.preventDefault();
     // In AppV2, static action handlers have `this` bound to the app instance
-    const el = this.element;
-    const input = el?.querySelector('input[name="note"]');
+    const input = this.element?.querySelector('input[name="note"]');
     const note = (input?.value ?? "").trim();
     await game.settings.set("hello-world", "note", note);
     ui.notifications.info(note ? `Saved: ${note}` : "Saved empty note");
-    this.render(); // re-render to reflect updated context
+    this.render(); // Re-render to show updated context (saved note)
   }
 }
 
@@ -72,6 +76,7 @@ Hooks.on("init", () => {
     if (controls["hello-world"]) return; // avoid duplicates
 
     const toolName = "open";
+
     const tool = {
       name: toolName,
       title: game.i18n.localize("HELLO.ControlTitle"),
@@ -82,13 +87,14 @@ Hooks.on("init", () => {
       onClick: () => game.modules.get("hello-world")?.api.open()
     };
 
+    // Define our top-level control group (no canvas layer; it’s a launcher)
     controls["hello-world"] = {
       name: "hello-world",
       title: game.i18n.localize("HELLO.ControlTitle"),
       icon: "fa-solid fa-face-smile",
-      layer: null,               // no canvas layer; this is a launcher group
-      activeTool: toolName,      // group state field (not the deprecated UI getter)
-      tools: { [toolName]: tool } // v13 tools: record of SceneControlTool
+      layer: null,
+      activeTool: toolName,          // group state field (OK in v13)
+      tools: { [toolName]: tool }    // v13: tools as a record of SceneControlTool
     };
 
     console.debug("[hello-world] Added top-level control group (v13).");
@@ -97,14 +103,15 @@ Hooks.on("init", () => {
 
 /* ---------------------- Ready: public API + v13 refresh ---------------------- */
 Hooks.once("ready", () => {
-  // Expose a tiny API so a macro can open the window
+  // Expose a tiny API so a macro can open the window:
+  //   game.modules.get('hello-world')?.api.open()
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // v13-compliant re-render of controls (no deprecated initialize/activeTool)
+  // v13-compliant re-render of controls (no deprecated initialize / activeTool)
   try {
     const currentControls = ui.controls?.controls;
-    const currentToolName = ui.controls?.tool?.name ?? undefined;
+    const currentToolName = ui.controls?.tool?.name ?? undefined; // v13 state
     ui.controls?.render({ controls: currentControls, tool: currentToolName });
   } catch (err) {
     console.warn("[hello-world] controls refresh issue (safe to ignore if the button shows):", err);
