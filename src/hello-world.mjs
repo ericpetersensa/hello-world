@@ -6,7 +6,7 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     id: "hello-world-app",
     classes: ["hello-world", "app"],
     tag: "section",
-    position: { width: 360, height: "auto" },
+    position: { width: 380, height: "auto" },
     window: {
       title: "HELLO.WorldTitle",
       icon: "fa-solid fa-face-smile",
@@ -15,7 +15,8 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ]
     },
     actions: {
-      "say-hello": HelloWorldApp.#onSayHello
+      "say-hello": HelloWorldApp.#onSayHello,
+      "save-note": HelloWorldApp.#onSaveNote
     }
   };
 
@@ -23,32 +24,54 @@ class HelloWorldApp extends HandlebarsApplicationMixin(ApplicationV2) {
     content: { template: "modules/hello-world/templates/hello.hbs" }
   };
 
+  /** Provide template context */
   async _prepareContext() {
+    const note = game.settings.get("hello-world", "note");
     return {
       message: game.i18n.localize("HELLO.WorldMessage"),
-      version: game.modules.get("hello-world")?.version ?? "dev"
+      version: game.modules.get("hello-world")?.version ?? "dev",
+      note,
+      saved: note
     };
   }
 
+  /** Header button action */
   static #onSayHello() {
     ui.notifications.info(game.i18n.localize("HELLO.Toast"));
+  }
+
+  /** Save note action (bound to a button with data-action="save-note") */
+  static async #onSaveNote(event, target) {
+    event.preventDefault();
+    // In AppV2, static action handlers have `this` bound to the app instance
+    const el = this.element;
+    const input = el?.querySelector('input[name="note"]');
+    const note = (input?.value ?? "").trim();
+    await game.settings.set("hello-world", "note", note);
+    ui.notifications.info(note ? `Saved: ${note}` : "Saved empty note");
+    this.render(); // re-render to reflect updated context
   }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Register a NEW top-level Scene Controls group at init (v13 style)  */
+/*  Init: register setting + inject a NEW top-level toolbar group      */
 /* ------------------------------------------------------------------ */
 Hooks.on("init", () => {
-  Hooks.on("getSceneControlButtons", (controls) => {
-    // v13+ expectation: controls is a Record<string, SceneControl>
-    if (!controls || typeof controls !== "object" || Array.isArray(controls)) return;
+  // Persisted world setting for the PoC
+  game.settings.register("hello-world", "note", {
+    name: "Saved Note",
+    scope: "world",
+    config: false,
+    type: String,
+    default: ""
+  });
 
-    // Skip if already injected by a reload or hot module swap
-    if (controls["hello-world"]) return;
+  // v13 shape: controls is a Record<string, SceneControl>
+  Hooks.on("getSceneControlButtons", (controls) => {
+    if (!controls || typeof controls !== "object" || Array.isArray(controls)) return;
+    if (controls["hello-world"]) return; // avoid duplicates
 
     const toolName = "open";
-
-    // Define our tool as part of a record (v13)
     const tool = {
       name: toolName,
       title: game.i18n.localize("HELLO.ControlTitle"),
@@ -59,32 +82,31 @@ Hooks.on("init", () => {
       onClick: () => game.modules.get("hello-world")?.api.open()
     };
 
-    // Define our top-level control group (no canvas layer; it’s a launcher)
     controls["hello-world"] = {
       name: "hello-world",
       title: game.i18n.localize("HELLO.ControlTitle"),
       icon: "fa-solid fa-face-smile",
-      layer: null,
-      activeTool: toolName,        // group state field, not the deprecated ui.controls getter
-      tools: { [toolName]: tool }  // v13: tools as a record
+      layer: null,               // no canvas layer; this is a launcher group
+      activeTool: toolName,      // group state field (not the deprecated UI getter)
+      tools: { [toolName]: tool } // v13 tools: record of SceneControlTool
     };
 
-    console.debug("[hello-world] Added top-level control group (v13 record).");
+    console.debug("[hello-world] Added top-level control group (v13).");
   });
 });
 
-/* ------------------------- Ready: public API & UI refresh ------------------------- */
+/* ---------------------- Ready: public API + v13 refresh ---------------------- */
 Hooks.once("ready", () => {
   // Expose a tiny API so a macro can open the window
   const mod = game.modules.get("hello-world");
   if (mod) mod.api = { open: () => new HelloWorldApp().render(true) };
 
-  // v13-compliant refresh: re-render controls and preserve current tool if present
+  // v13-compliant re-render of controls (no deprecated initialize/activeTool)
   try {
     const currentControls = ui.controls?.controls;
-    const currentToolName = ui.controls?.tool?.name ?? undefined; // v13 state
+    const currentToolName = ui.controls?.tool?.name ?? undefined;
     ui.controls?.render({ controls: currentControls, tool: currentToolName });
   } catch (err) {
-    console.warn("[hello-world] controls refresh encountered a problem (safe to ignore if the button shows):", err);
+    console.warn("[hello-world] controls refresh issue (safe to ignore if the button shows):", err);
   }
 });
